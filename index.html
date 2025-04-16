@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>静滞虚幻</title>
+    <style>
+        .container { 
+            max-width: 600px; 
+            margin: 20px auto; 
+            padding: 0 20px;
+        }
+        canvas { 
+            border: 1px solid #ccc; 
+            margin: 20px 0;
+            max-width: 100%;
+        }
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .control-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .control-item input[type="range"] {
+            flex: 1;
+            max-width: 300px;
+        }
+        .button-group { 
+            display: flex;
+            gap: 10px;
+            margin: 15px 0; 
+        }
+        button {
+            padding: 8px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #resetBtn {
+            background-color: #f44336;
+            color: white;
+        }
+        #saveBtn {
+            background-color: #4CAF50;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>静滞虚幻</h2>
+        <div>
+            <label>选择底图: <input type="file" id="baseImage" accept="image/*"></label>
+        </div>
+
+        <div class="controls">
+            <div class="control-item">
+                <label>水平偏移:</label>
+                <input type="range" id="posX" min="-1" max="1" value="0" step="0.01">
+                <input type="number" id="posXNum" min="-1" max="1" value="0" step="0.01">
+            </div>
+            <div class="control-item">
+                <label>垂直偏移:</label>
+                <input type="range" id="posY" min="-1" max="1" value="0" step="0.01">
+                <input type="number" id="posYNum" min="-1" max="1" value="0" step="0.01">
+            </div>
+            <div class="control-item">
+                <label>缩放大小:</label>
+                <input type="range" id="scale" min="0.1" max="3" value="1" step="0.01">
+                <input type="number" id="scaleNum" min="0.1" max="3" value="1" step="0.01">
+            </div>
+            <div class="control-item">
+                <label>透明程度:</label>
+                <input type="range" id="opacity" min="0" max="1" value="0.8" step="0.01">
+                <input type="number" id="opacityNum" min="0" max="1" value="0.8" step="0.01">
+            </div>
+            <div class="control-item">
+                <label>底图亮度:</label>
+                <input type="range" id="brightness" min="0" max="200" value="100" step="0.01">
+                <input type="number" id="brightnessNum" min="0" max="200" value="100" step="0.01">
+            </div>
+        </div>
+
+        <div class="button-group">
+            <button id="resetBtn">恢复默认设置</button>
+            <button id="saveBtn">保存图片</button>
+        </div>
+
+        <canvas id="canvas"></canvas>
+        <div class="repo-link"></div>
+            <a href="https://github.com/SusieGlitter/prts" target="_blank">SusieGlitter/prts</a>
+        </div>
+    </div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+let currentBaseImg = null;
+let baseScale = 1;
+let userScale = 1;
+
+// 创建离屏canvas用于中间合成
+const tempCanvas = document.createElement('canvas');
+const tempCtx = tempCanvas.getContext('2d');
+
+const overlayImg = new Image();
+overlayImg.src = 'prts.png';
+overlayImg.crossOrigin = 'anonymous';
+
+const controls = {
+    posX: { element: document.getElementById('posX'), number: document.getElementById('posXNum') },
+    posY: { element: document.getElementById('posY'), number: document.getElementById('posYNum') },
+    scale: { element: document.getElementById('scale'), number: document.getElementById('scaleNum') },
+    opacity: { element: document.getElementById('opacity'), number: document.getElementById('opacityNum') },
+    brightness: { element: document.getElementById('brightness'), number: document.getElementById('brightnessNum') },
+};
+
+function calculateBaseScale() {
+    if (!currentBaseImg) return 1;
+    const widthRatio = currentBaseImg.width / overlayImg.width;
+    const heightRatio = currentBaseImg.height / overlayImg.height;
+    return Math.min(widthRatio, heightRatio)*1.5;
+}
+
+function updateControls() {
+    controls.scale.number.value = userScale.toFixed(2);
+    controls.scale.element.value = userScale;
+
+    for (let key in controls) {
+        if (key === 'scale') continue; // 已处理
+        controls[key].number.value = parseFloat(controls[key].element.value).toFixed(2);
+    }
+}
+
+function bindControl(id) {
+    const control = controls[id];
+
+    // 滑块变化时更新数字框
+    control.element.addEventListener('input', () => {
+        let val = parseFloat(control.element.value);
+        control.number.value = val.toFixed(2);
+        if (id === 'scale') userScale = val;
+        composeImages();
+    });
+
+    // 数字框变化时更新滑块
+    control.number.addEventListener('input', () => {
+        let val = parseFloat(control.number.value);
+        control.element.value = val;
+        if (id === 'scale') userScale = val;
+        composeImages();
+    });
+
+    // 输入框获得焦点时自动全选
+    control.number.addEventListener('focus', () => {
+        control.number.select();
+    });
+}
+
+for (let key in controls) {
+    bindControl(key);
+}
+
+function restoreDefault() {
+    if (!currentBaseImg) return;
+    
+    userScale = 1;
+    controls.scale.element.value = userScale;
+    controls.posX.element.value = 0;
+    controls.posY.element.value = 0;
+    controls.opacity.element.value = 0.8;
+    controls.brightness.element.value = 100;
+    
+    updateControls();
+    composeImages();
+}
+
+function composeImages() {
+    if (!currentBaseImg) return;
+
+    // 清空并绘制底图
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.globalAlpha = 1;
+    ctx.filter = `brightness(${controls.brightness.element.value}%)`;
+    ctx.drawImage(currentBaseImg, 0, 0);
+    ctx.filter = `brightness(100%)`;
+
+    // 创建中间层Canvas
+    const intermediateCanvas = document.createElement('canvas');
+    intermediateCanvas.width = canvas.width;
+    intermediateCanvas.height = canvas.height;
+    const iCtx = intermediateCanvas.getContext('2d');
+
+    // Step 1: 绘制某透明度的黑色背景
+    iCtx.fillStyle = 'rgba(0, 0, 0, 0.77)';
+    iCtx.fillRect(0, 0, intermediateCanvas.width, intermediateCanvas.height);
+
+    // Step 2: 绘制PRTS图片（完全替换该区域）
+    const scale = baseScale * userScale;
+    const posX = parseInt(controls.posX.element.value*canvas.width);
+    const posY = parseInt(controls.posY.element.value*canvas.height);
+
+    const imgWidth = overlayImg.width * scale;
+    const imgHeight = overlayImg.height * scale;
+    const centerX = (canvas.width - imgWidth)/2 + posX;
+    const centerY = (canvas.height - imgHeight)/2 + posY;
+
+    // 使用source-over模式保证图片覆盖背景
+    iCtx.globalCompositeOperation = 'destination-out';
+    iCtx.drawImage(overlayImg, centerX, centerY, imgWidth, imgHeight);
+    iCtx.globalCompositeOperation = 'source-over';
+    iCtx.drawImage(overlayImg, centerX, centerY, imgWidth, imgHeight);
+
+    // Step 3: 叠加中间层到底图
+    ctx.globalAlpha = parseFloat(controls.opacity.element.value);
+    ctx.drawImage(intermediateCanvas, 0, 0);
+}
+
+
+document.getElementById('baseImage').addEventListener('change', async () => {
+    const file = document.getElementById('baseImage').files[0];
+    if (!file) return;
+
+    currentBaseImg = await new Promise(resolve => {
+        const reader = new FileReader();
+        reader.onload = e => {
+            const img = new Image();
+            img.onload = () => {
+                canvas.width = img.width;
+                canvas.height = img.height;
+                resolve(img);
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+
+    baseScale = calculateBaseScale();
+    userScale = 1;
+    controls.scale.element.value = userScale;
+    updateControls();
+    composeImages();
+});
+
+document.getElementById('resetBtn').addEventListener('click', restoreDefault);
+document.getElementById('saveBtn').addEventListener('click', function() {
+    if (!currentBaseImg) {
+        return;
+    }
+    const link = document.createElement('a');
+    link.download = '下载.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+});
+
+document.querySelectorAll('input[type="range"]').forEach(input => {
+    input.addEventListener('input', () => {
+        if (input.id === 'scale') {
+            userScale = parseFloat(input.value);
+        }
+        updateControls();
+        composeImages();
+    });
+});
+
+updateControls();
+</script>
+</body>
+</html>

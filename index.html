@@ -83,17 +83,17 @@
                 <input type="number" id="brightnessNum" min="0" max="200" value="100" step="0.01">
             </div>
             <div class="control-item">
-                <label><input type="checkbox" id="useCover"> 使用额外叠加图</label>
+                <label><input type="checkbox" id="useCover">黄色源石</label>
             </div>
-            <div class="control-item" id="coverOpacityGroup" style="display: none;">
-                <label>叠加图透明度:</label>
+            <div class="control-item">
+                <label>透明程度:</label>
                 <input type="range" id="coverOpacity" min="0" max="1" step="0.01" value="0.8">
                 <input type="number" id="coverOpacityNum" min="0" max="1" step="0.01" value="0.8">
             </div>
         </div>
 
         <div class="button-group">
-            <button id="resetBtn">恢复默认设置</button>
+            <button id="resetBtn">恢复默认</button>
             <button id="saveBtn">保存图片</button>
         </div>
 
@@ -177,8 +177,8 @@ function restoreDefault() {
     controls.brightness.element.value = 100;
     controls.coverOpacity.element.value = 0.8;
 
-    document.getElementById('useCover').checked = false;
-    document.getElementById('coverOpacityGroup').style.display = 'none';
+    document.getElementById('useCover').checked = true;
+    document.getElementById('coverOpacityGroup').style.display = 'flex';
 
     updateControls();
     composeImages();

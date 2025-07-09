@@ -82,10 +82,18 @@
                 <input type="range" id="brightness" min="0" max="200" value="100" step="0.01">
                 <input type="number" id="brightnessNum" min="0" max="200" value="100" step="0.01">
             </div>
+            <div class="control-item">
+                <label><input type="checkbox" id="useCover">黄色蒙版</label>
+            </div>
+            <div class="control-item">
+                <label>透明程度:</label>
+                <input type="range" id="coverOpacity" min="0" max="1" step="0.01" value="1">
+                <input type="number" id="coverOpacityNum" min="0" max="1" step="0.01" value="1">
+            </div>
         </div>
 
         <div class="button-group">
-            <button id="resetBtn">恢复默认设置</button>
+            <button id="resetBtn">恢复默认</button>
             <button id="saveBtn">保存图片</button>
         </div>
 
@@ -110,12 +118,19 @@ const overlayImg = new Image();
 overlayImg.src = 'prts.png';
 overlayImg.crossOrigin = 'anonymous';
 
+const coverImg = new Image();
+coverImg.src = 'cover.png';
+coverImg.crossOrigin = 'anonymous';
+
 const controls = {
     posX: { element: document.getElementById('posX'), number: document.getElementById('posXNum') },
     posY: { element: document.getElementById('posY'), number: document.getElementById('posYNum') },
     scale: { element: document.getElementById('scale'), number: document.getElementById('scaleNum') },
     opacity: { element: document.getElementById('opacity'), number: document.getElementById('opacityNum') },
     brightness: { element: document.getElementById('brightness'), number: document.getElementById('brightnessNum') },
+    cover: { element: document.getElementById('useCover') },
+    coverOpacity: { element: document.getElementById('coverOpacity'), number: document.getElementById('coverOpacityNum') },
+
 };
 
 function calculateBaseScale() {
@@ -173,7 +188,10 @@ function restoreDefault() {
     controls.posY.element.value = 0;
     controls.opacity.element.value = 0.8;
     controls.brightness.element.value = 100;
-    
+
+    controls.cover.element.checked = true;
+    controls.coverOpacity.element.value = 1;
+
     updateControls();
     composeImages();
 }
@@ -217,6 +235,11 @@ function composeImages() {
     // Step 3: 叠加中间层到底图
     ctx.globalAlpha = parseFloat(controls.opacity.element.value);
     ctx.drawImage(intermediateCanvas, 0, 0);
+
+    if (controls.cover.element.checked) {
+        ctx.globalAlpha = parseFloat(controls.coverOpacity.element.value);
+        ctx.drawImage(coverImg, 0, 0, canvas.width, canvas.height);
+    }
 }
 
 
